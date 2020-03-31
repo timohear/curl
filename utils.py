@@ -9,6 +9,8 @@ from torch.utils.data import Dataset, DataLoader
 import time
 from skimage.util.shape import view_as_windows
 
+import tensorflow as tf
+
 class eval_mode(object):
     def __init__(self, *models):
         self.models = models
@@ -88,9 +90,6 @@ class ReplayBuffer(Dataset):
         self.last_save = 0
         self.full = False
 
-
-    
-
     def add(self, obs, action, reward, next_obs, done):
        
         np.copyto(self.obses[self.idx], obs)
@@ -148,7 +147,36 @@ class ReplayBuffer(Dataset):
                           time_anchor=None, time_pos=None)
 
         return obses, actions, rewards, next_obses, not_dones, cpc_kwargs
+    
+    def sample_cpc_color_jitter(self):
 
+        start = time.time()
+        idxs = np.random.randint(
+            0, self.capacity if self.full else self.idx, size=self.batch_size
+        )
+      
+        obses = self.obses[idxs]
+        next_obses = self.next_obses[idxs]
+        pos = obses.copy()
+
+        obses = color_jitter(obses, self.image_size)
+        next_obses = color_jitter(next_obses, self.image_size)
+        pos = color_jitter(pos, self.image_size)
+    
+        obses = torch.as_tensor(obses, device=self.device).float()
+        next_obses = torch.as_tensor(
+            next_obses, device=self.device
+        ).float()
+        actions = torch.as_tensor(self.actions[idxs], device=self.device)
+        rewards = torch.as_tensor(self.rewards[idxs], device=self.device)
+        not_dones = torch.as_tensor(self.not_dones[idxs], device=self.device)
+
+        pos = torch.as_tensor(pos, device=self.device).float()
+        cpc_kwargs = dict(obs_anchor=obses, obs_pos=pos,
+                          time_anchor=None, time_pos=None)
+
+        return obses, actions, rewards, next_obses, not_dones, cpc_kwargs
+    
     def save(self, save_dir):
         if self.idx == self.last_save:
             return
@@ -433,4 +461,44 @@ class Flip(object):
     def flip(self, img):
         return np.transpose(img, (0, 2, 1))
 
-
+def color_jitter(imgs, num_trans=4):    
+    '''
+    imgs = batch x (stack x channel) x h x w
+    num_trans = number of random filters
+    '''
+    
+    img_h, img_w = imgs.shape[2], imgs.shape[3]
+    num_stack_channel = imgs.shape[1]
+    num_batch = imgs.shape[0]
+    
+    trans_imgs = imgs.reshape(-1, 3, img_h, img_w) # (batch x stack, channel, h, w)
+    trans_imgs = trans_imgs.swapaxes(3,1) # (batch x stack, w, h, channel)
+    
+    total_output = None
+    
+    # random index to select random transition
+    selected_idx = np.random.randint(num_trans, size=num_batch)  * num_batch + np.arange(num_batch)
+    
+    for trans_index in range(num_trans):
+        # randomize parameters of color jitter
+        delta_bright = np.random.uniform(-.25, .25)
+        delta_contrast = np.random.uniform(.5, 1.5)
+        delta_saturation = np.random.uniform(.5, 1.5)
+        delta_hue = np.random.uniform(-.5, .5)
+        
+        processed_x1 = tf.image.adjust_brightness(trans_imgs, delta_bright) # brightness
+        processed_x2 = tf.image.adjust_contrast(processed_x1, delta_contrast) # contrast
+        processed_x3 = tf.image.adjust_saturation(processed_x2, delta_saturation) # saturation
+        processed_x4 = tf.image.adjust_hue(processed_x3, delta_hue) # hue
+        processed_x4 = processed_x4.numpy()
+        
+        # resize the output as original input
+        output = processed_x4.swapaxes(3,1)
+        output = output.reshape(-1, num_stack_channel, img_h, img_w)
+        
+        if trans_index == 0:
+            total_output = output.copy()
+        else:
+            total_output = np.concatenate((total_output, output))
+            
+    return total_output[selected_idx]

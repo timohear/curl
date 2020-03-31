@@ -1,5 +1,15 @@
 # CURL: Contrastive Unsupervised Representation Learning for Sample-Efficient Reinforcement Learning
 
+## Branch Description
+
+Implementation of random color jitter. This code requires `tensorflow 2.1.0`. For visualization, checkout `Visualize_color_jitter.ipynb`
+
+CPU-only tensorflow for Python 3.6
+```
+pip install https://storage.googleapis.com/tensorflow/linux/cpu/tensorflow_cpu-2.1.0-cp36-cp36m-manylinux2010_x86_64.whl
+```
+
+
 ## Installation 
 
 All of the dependencies are in the `conda_env.yml` file. They can be installed manually or with the following command:
