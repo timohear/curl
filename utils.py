@@ -129,8 +129,8 @@ class ReplayBuffer(Dataset):
         obses = self.obses[idxs]
         next_obses = self.next_obses[idxs]
         pos = obses.copy()
-
         obses = fast_random_crop(obses, self.image_size)
+        
         next_obses = fast_random_crop(next_obses, self.image_size)
         pos = fast_random_crop(pos, self.image_size)
     
@@ -159,14 +159,15 @@ class ReplayBuffer(Dataset):
         next_obses = self.next_obses[idxs]
         pos = obses.copy()
 
-        obses = color_jitter(obses, self.image_size)
-        next_obses = color_jitter(next_obses, self.image_size)
-        pos = color_jitter(pos, self.image_size)
+        obses = color_jitter(obses)
+        next_obses = color_jitter(next_obses)
+        pos = color_jitter(pos)
     
         obses = torch.as_tensor(obses, device=self.device).float()
         next_obses = torch.as_tensor(
             next_obses, device=self.device
         ).float()
+        
         actions = torch.as_tensor(self.actions[idxs], device=self.device)
         rewards = torch.as_tensor(self.rewards[idxs], device=self.device)
         not_dones = torch.as_tensor(self.not_dones[idxs], device=self.device)
@@ -461,32 +462,30 @@ class Flip(object):
     def flip(self, img):
         return np.transpose(img, (0, 2, 1))
 
-def color_jitter(imgs, num_trans=4):    
+def color_jitter(imgs, num_trans=8):    
     '''
     imgs = batch x (stack x channel) x h x w
     num_trans = number of random filters
     '''
-    
     img_h, img_w = imgs.shape[2], imgs.shape[3]
     num_stack_channel = imgs.shape[1]
     num_batch = imgs.shape[0]
-    
-    trans_imgs = imgs.reshape(-1, 3, img_h, img_w) # (batch x stack, channel, h, w)
-    trans_imgs = trans_imgs.swapaxes(3,1) # (batch x stack, w, h, channel)
-    
+    batch_size = int(num_batch / num_trans)
     total_output = None
     
     # random index to select random transition
-    selected_idx = np.random.randint(num_trans, size=num_batch)  * num_batch + np.arange(num_batch)
-    
     for trans_index in range(num_trans):
+        temp_imgs = imgs[trans_index*batch_size:(trans_index+1)*batch_size]
+        temp_imgs = temp_imgs.reshape(-1, 3, img_h, img_w) # (batch x stack, channel, h, w)
+        temp_imgs = temp_imgs.swapaxes(3,1) # (batch x stack, w, h, channel)
+        
         # randomize parameters of color jitter
-        delta_bright = np.random.uniform(-.25, .25)
+        delta_bright = np.random.uniform(-.2, .2)
         delta_contrast = np.random.uniform(.5, 1.5)
         delta_saturation = np.random.uniform(.5, 1.5)
         delta_hue = np.random.uniform(-.5, .5)
         
-        processed_x1 = tf.image.adjust_brightness(trans_imgs, delta_bright) # brightness
+        processed_x1 = tf.image.adjust_brightness(temp_imgs, delta_bright) # brightness
         processed_x2 = tf.image.adjust_contrast(processed_x1, delta_contrast) # contrast
         processed_x3 = tf.image.adjust_saturation(processed_x2, delta_saturation) # saturation
         processed_x4 = tf.image.adjust_hue(processed_x3, delta_hue) # hue
@@ -501,4 +500,4 @@ def color_jitter(imgs, num_trans=4):
         else:
             total_output = np.concatenate((total_output, output))
             
-    return total_output[selected_idx]
+    return total_output

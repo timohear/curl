@@ -15,7 +15,7 @@ import utils
 from logger import Logger
 from video import VideoRecorder
 
-from curl_sac import CurlSacAgent
+from curl_sac import CurlSacAgent, ColorJitterSacAgent
 from torchvision import transforms
 
 
@@ -118,8 +118,14 @@ def evaluate(env, agent, video, num_episodes, L, step, args):
 
 
 def make_agent(obs_shape, action_shape, args, device):
+    SacAgent = None
     if args.agent == 'curl_sac':
-        return CurlSacAgent(
+        SacAgent = CurlSacAgent
+    elif args.agent == 'colorjitter_sac':
+        SacAgent = ColorJitterSacAgent
+    else:
+        assert 'agent is not supported: %s' % args.agent
+    return SacAgent(
             obs_shape=obs_shape,
             action_shape=action_shape,
             device=device,
@@ -146,10 +152,7 @@ def make_agent(obs_shape, action_shape, args, device):
             log_interval=args.log_interval,
             detach_encoder=args.detach_encoder,
             curl_latent_dim=args.curl_latent_dim
-
         )
-    else:
-        assert 'agent is not supported: %s' % args.agent
 
 def main():
     args = parse_args()
