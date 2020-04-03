@@ -178,6 +178,38 @@ class ReplayBuffer(Dataset):
 
         return obses, actions, rewards, next_obses, not_dones, cpc_kwargs
     
+    def sample_cpc_random_conv(self):
+
+        start = time.time()
+        idxs = np.random.randint(
+            0, self.capacity if self.full else self.idx, size=self.batch_size
+        )
+      
+        obses = self.obses[idxs]
+        next_obses = self.next_obses[idxs]
+        pos = obses.copy()
+        
+        # numpy --> tensor
+        obses = torch.as_tensor(obses, device=self.device).float()
+        next_obses = torch.as_tensor(
+            next_obses, device=self.device
+        ).float()
+        pos = torch.as_tensor(pos, device=self.device).float()
+        
+        # random convolution
+        obses = random_convolution(obses/255.0, num_trans=obses.size(0))
+        next_obses = random_convolution(next_obses/255.0, num_trans=next_obses.size(0))
+        pos = random_convolution(pos/255.0, num_trans=pos.size(0))
+        
+        actions = torch.as_tensor(self.actions[idxs], device=self.device)
+        rewards = torch.as_tensor(self.rewards[idxs], device=self.device)
+        not_dones = torch.as_tensor(self.not_dones[idxs], device=self.device)
+
+        cpc_kwargs = dict(obs_anchor=obses, obs_pos=pos,
+                          time_anchor=None, time_pos=None)
+
+        return obses, actions, rewards, next_obses, not_dones, cpc_kwargs
+    
     def save(self, save_dir):
         if self.idx == self.last_save:
             return
@@ -501,3 +533,33 @@ def color_jitter(imgs, num_trans=8):
             total_output = np.concatenate((total_output, output))
             
     return total_output
+
+def random_convolution(imgs, num_trans=10):
+    '''
+    random covolution in "network randomization"
+    
+    (imbs): B x (C x stack) x H x W, note: imgs should be normalized and torch tensor
+    '''
+    _device = imgs.device
+    
+    img_h, img_w = imgs.shape[2], imgs.shape[3]
+    num_stack_channel = imgs.shape[1]
+    num_batch = imgs.shape[0]
+    batch_size = int(num_batch / num_trans)
+    
+    # initialize random covolution
+    rand_conv = nn.Conv2d(3, 3, kernel_size=3, bias=False, padding=1).to(_device)
+    
+    for trans_index in range(num_trans):
+        torch.nn.init.xavier_normal_(rand_conv.weight.data)
+        temp_imgs = imgs[trans_index*batch_size:(trans_index+1)*batch_size]
+        temp_imgs = temp_imgs.reshape(-1, 3, img_h, img_w) # (batch x stack, channel, h, w)
+        rand_out = rand_conv(temp_imgs)
+        if trans_index == 0:
+            total_out = rand_out
+        else:
+            total_out = torch.cat((total_out, rand_out), 0)
+    total_out = total_out.reshape(-1, num_stack_channel, img_h, img_w)
+    total_out = total_out * 255.0 # multiply 255.0 for compatibility
+    
+    return total_out

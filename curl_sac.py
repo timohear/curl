@@ -706,3 +706,33 @@ class ColorJitterSacAgent(object):
             torch.load('%s/critic_%s.pt' % (model_dir, step))
         )
 
+class RandomConvSacAgent(ColorJitterSacAgent):
+    """SAC with Random Conv."""
+    def __init__(self, *args, **kwargs):
+        super(RandomConvSacAgent, self).__init__(*args, **kwargs)
+
+    def update(self, replay_buffer, L, step):
+        if self.encoder_type == 'pixel':
+            obs, action, reward, next_obs, not_done, _ = replay_buffer.sample_cpc_random_conv()
+        else:
+            obs, action, reward, next_obs, not_done = replay_buffer.sample_proprio()
+    
+        if step % self.log_interval == 0:
+            L.log('train/batch_reward', reward.mean(), step)
+
+        self.update_critic(obs, action, reward, next_obs, not_done, L, step)
+
+        if step % self.actor_update_freq == 0:
+            self.update_actor_and_alpha(obs, L, step)
+
+        if step % self.critic_target_update_freq == 0:
+            utils.soft_update_params(
+                self.critic.Q1, self.critic_target.Q1, self.critic_tau
+            )
+            utils.soft_update_params(
+                self.critic.Q2, self.critic_target.Q2, self.critic_tau
+            )
+            utils.soft_update_params(
+                self.critic.encoder, self.critic_target.encoder,
+                self.encoder_tau
+            )

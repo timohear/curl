@@ -15,7 +15,7 @@ import utils
 from logger import Logger
 from video import VideoRecorder
 
-from curl_sac import CurlSacAgent, ColorJitterSacAgent
+from curl_sac import CurlSacAgent, ColorJitterSacAgent, RandomConvSacAgent
 from torchvision import transforms
 
 
@@ -123,6 +123,8 @@ def make_agent(obs_shape, action_shape, args, device):
         SacAgent = CurlSacAgent
     elif args.agent == 'colorjitter_sac':
         SacAgent = ColorJitterSacAgent
+    elif args.agent == 'randconv_sac':
+        SacAgent = RandomConvSacAgent
     else:
         assert 'agent is not supported: %s' % args.agent
     return SacAgent(
