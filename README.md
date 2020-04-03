@@ -9,7 +9,7 @@ CPU-only tensorflow for Python 3.6
 pip install https://storage.googleapis.com/tensorflow/linux/cpu/tensorflow_cpu-2.1.0-cp36-cp36m-manylinux2010_x86_64.whl
 ```
 
-script: note that `--pre_transform_image_size` should be 84
+command to train agent with color jitter: note that `--pre_transform_image_size` should be 84
 ```
 CUDA_VISIBLE_DEVICES=7 python train.py \
     --domain_name cartpole \
@@ -19,6 +19,19 @@ CUDA_VISIBLE_DEVICES=7 python train.py \
     --save_tb --pre_transform_image_size 84 --image_size 84 \
     --work_dir ./tmp \
     --agent colorjitter_sac --frame_stack 3 \
+    --seed -1 --critic_lr 1e-3 --actor_lr 1e-3 --eval_freq 10000 --batch_size 128 --num_train_steps 1000000 
+```
+
+command to train agent with random conv: note that `--pre_transform_image_size` should be 84
+```
+CUDA_VISIBLE_DEVICES=7 python train.py \
+    --domain_name cartpole \
+    --task_name swingup \
+    --encoder_type pixel \
+    --action_repeat 8 \
+    --save_tb --pre_transform_image_size 84 --image_size 84 \
+    --work_dir ./tmp \
+    --agent randconv_sac --frame_stack 3 \
     --seed -1 --critic_lr 1e-3 --actor_lr 1e-3 --eval_freq 10000 --batch_size 128 --num_train_steps 1000000 
 ```
 
